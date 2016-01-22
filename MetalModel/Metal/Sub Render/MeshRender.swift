@@ -139,7 +139,7 @@ class MeshRender: RenderProtocol {
             atIndex: Mesh.Buffer.FrameUniform.index())
         
         // Render each of our meshes.
-        _ = meshes.map { mesh in mesh.render(renderEncoder) }
+        meshes.forEach { mesh in mesh.render(renderEncoder) }
 
         renderEncoder.popDebugGroup()
     }

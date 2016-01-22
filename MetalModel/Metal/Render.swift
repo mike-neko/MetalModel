@@ -126,18 +126,18 @@ class Render: NSObject, MTKViewDelegate {
 
     // MARK: - private
     private func compute(commandBuffer: MTLCommandBuffer) {
-        _ = computeTargets.map { $0.compute(commandBuffer) }
+        computeTargets.forEach { $0.compute(commandBuffer) }
     }
     
     private func update() {
-        _ = renderTargets.map { $0.update() }
+        renderTargets.forEach { $0.update() }
     }
     
     private func render(renderEncoder: MTLRenderCommandEncoder) {
-        _ = renderTargets.map { $0.render(renderEncoder) }
+        renderTargets.forEach { $0.render(renderEncoder) }
     }
 
     private func postRender() {
-        _ = computeTargets.map { $0.postRender() }
+        computeTargets.forEach { $0.postRender() }
     }
 }
