@@ -12,7 +12,7 @@ import simd
 /* 行列周りのユーティリティ */
 class Matrix {
     // 透視変換
-    static func perspective(fovY fovY: Float, aspect: Float, nearZ: Float, farZ: Float) -> float4x4 {
+    static func perspective(fovY: Float, aspect: Float, nearZ: Float, farZ: Float) -> float4x4 {
         let yScale = 1 / simd.tan(fovY * 0.5)
         let xScale = yScale / aspect
         let zScale = farZ / (farZ - nearZ)
@@ -25,14 +25,14 @@ class Matrix {
     }
 
     // 平行移動
-    static func translation(x x:Float, y: Float, z: Float) -> float4x4 {
+    static func translation(x:Float, y: Float, z: Float) -> float4x4 {
         var m = matrix_identity_float4x4
         m.columns.3 = vector_float4(x, y, z, 1)
         return float4x4(m)
     }
     
     // 回転
-    static func rotation(radians radians: Float, x: Float, y: Float, z: Float) -> float4x4 {
+    static func rotation(radians: Float, x: Float, y: Float, z: Float) -> float4x4 {
         let v = vector_normalize(vector_float3(x, y, z))
         let cos = simd.cosf(radians)
         let cosp = 1 - cos
@@ -58,7 +58,7 @@ class Matrix {
     }
 
     // 拡大縮小
-    static func scale(x x: Float, y: Float, z: Float) -> float4x4 {
+    static func scale(x: Float, y: Float, z: Float) -> float4x4 {
         return float4x4(diagonal: float4(x, y, z, 1))
     }
 }

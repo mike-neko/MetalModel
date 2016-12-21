@@ -13,103 +13,106 @@ import MetalKit
 class MeshRender: RenderProtocol {
     // Indices of vertex attribute in descriptor.
     enum VertexAttribute: Int {
-        case Position = 0
-        case Normal = 1
-        case Texcoord = 2
+        case position = 0
+        case normal = 1
+        case texcoord = 2
         func index() -> Int { return self.rawValue }
     }
-
-    private var pipelineState: MTLRenderPipelineState! = nil
-    private var depthState: MTLDepthStencilState! = nil
-   
+    
+    fileprivate var pipelineState: MTLRenderPipelineState! = nil
+    fileprivate var depthState: MTLDepthStencilState! = nil
+    
     // Meshes
-    private var meshes: [Mesh]! = nil
-    private var frameUniformBuffers: [MTLBuffer] = []
+    fileprivate var meshes: [Mesh]! = nil
+    fileprivate var frameUniformBuffers: [MTLBuffer] = []
     
     // Uniforms
     var modelMatrix = float4x4(matrix_identity_float4x4)
     
-    func setup(vertexShaderName vertexShaderName: String, fragmentShaderName: String, model: String) -> Bool {
+    func setup(vertexShaderName: String, fragmentShaderName: String, model: String) -> Bool {
         let device = Render.current.device
         let mtkView = Render.current.mtkView
         let library = Render.current.library
-
-        guard let vertex_pg = library.newFunctionWithName(vertexShaderName) else { return false }
-        guard let fragment_pg = library.newFunctionWithName(fragmentShaderName) else { return false }
+        
+        guard let vertex_pg = library?.makeFunction(name: vertexShaderName) else { return false }
+        guard let fragment_pg = library?.makeFunction(name: fragmentShaderName) else { return false }
         
         let vertexDescriptor = MTLVertexDescriptor()
         // Positions.
-        let attr_pos = vertexDescriptor.attributes[VertexAttribute.Position.index()]
-        attr_pos.format = .Float3
-        attr_pos.offset = 0
-        attr_pos.bufferIndex = Mesh.Buffer.MeshVertex.index()
+        let attr_pos = vertexDescriptor.attributes[VertexAttribute.position.index()]
+        attr_pos?.format = .float3
+        attr_pos?.offset = 0
+        attr_pos?.bufferIndex = Mesh.Buffer.meshVertex.index()
         
         // Normals.
-        let attr_nor = vertexDescriptor.attributes[VertexAttribute.Normal.index()]
-        attr_nor.format = .Float3
-        attr_nor.offset = 12
-        attr_nor.bufferIndex = Mesh.Buffer.MeshVertex.index()
+        let attr_nor = vertexDescriptor.attributes[VertexAttribute.normal.index()]
+        attr_nor?.format = .float3
+        attr_nor?.offset = 12
+        attr_nor?.bufferIndex = Mesh.Buffer.meshVertex.index()
         
         // Texture coordinates.
-        let attr_tex = vertexDescriptor.attributes[VertexAttribute.Texcoord.index()]
-        attr_tex.format = .Half2
-        attr_tex.offset = 24
-        attr_tex.bufferIndex = Mesh.Buffer.MeshVertex.index()
+        let attr_tex = vertexDescriptor.attributes[VertexAttribute.texcoord.index()]
+        attr_tex?.format = .half2
+        attr_tex?.offset = 24
+        attr_tex?.bufferIndex = Mesh.Buffer.meshVertex.index()
         
         // Single interleaved buffer.
-        let layout = vertexDescriptor.layouts[Mesh.Buffer.MeshVertex.index()]
-        layout.stride = 28;
-        layout.stepRate = 1;
-        layout.stepFunction = .PerVertex
+        let layout = vertexDescriptor.layouts[Mesh.Buffer.meshVertex.index()]
+        layout?.stride = 28;
+        layout?.stepRate = 1;
+        layout?.stepFunction = .perVertex
         
         // Create a reusable pipeline state
         let pipelineDescriptor = MTLRenderPipelineDescriptor()
         pipelineDescriptor.label = "MeshPipeLine"
-        pipelineDescriptor.sampleCount = mtkView.sampleCount
+        pipelineDescriptor.sampleCount = (mtkView?.sampleCount)!
         pipelineDescriptor.vertexFunction = vertex_pg
         pipelineDescriptor.fragmentFunction = fragment_pg
         pipelineDescriptor.vertexDescriptor = vertexDescriptor
-        pipelineDescriptor.colorAttachments[0].pixelFormat = mtkView.colorPixelFormat
-        pipelineDescriptor.depthAttachmentPixelFormat = mtkView.depthStencilPixelFormat
-        pipelineDescriptor.stencilAttachmentPixelFormat = mtkView.depthStencilPixelFormat
+        pipelineDescriptor.colorAttachments[0].pixelFormat = (mtkView?.colorPixelFormat)!
+        pipelineDescriptor.depthAttachmentPixelFormat = (mtkView?.depthStencilPixelFormat)!
+        pipelineDescriptor.stencilAttachmentPixelFormat = (mtkView?.depthStencilPixelFormat)!
         do {
-            pipelineState = try device.newRenderPipelineStateWithDescriptor(pipelineDescriptor)
+            pipelineState = try device?.makeRenderPipelineState(descriptor: pipelineDescriptor)
         } catch {
             return false
         }
         
         let depthDescriptor = MTLDepthStencilDescriptor()
-        depthDescriptor.depthCompareFunction = .Less
-        depthDescriptor.depthWriteEnabled = true
-        depthState = device.newDepthStencilStateWithDescriptor(depthDescriptor)
+        depthDescriptor.depthCompareFunction = .less
+        depthDescriptor.isDepthWriteEnabled = true
+        depthState = device?.makeDepthStencilState(descriptor: depthDescriptor)
         
         let modelDescriptor = MTKModelIOVertexDescriptorFromMetal(vertexDescriptor)
         let mdl_attrs = modelDescriptor.attributes
-        (mdl_attrs[VertexAttribute.Position.index()] as! MDLVertexAttribute).name = MDLVertexAttributePosition
-        (mdl_attrs[VertexAttribute.Normal.index()] as! MDLVertexAttribute).name = MDLVertexAttributeNormal
-        (mdl_attrs[VertexAttribute.Texcoord.index()] as! MDLVertexAttribute).name = MDLVertexAttributeTextureCoordinate
+        (mdl_attrs[VertexAttribute.position.index()] as! MDLVertexAttribute).name = MDLVertexAttributePosition
+        (mdl_attrs[VertexAttribute.normal.index()] as! MDLVertexAttribute).name = MDLVertexAttributeNormal
+        (mdl_attrs[VertexAttribute.texcoord.index()] as! MDLVertexAttribute).name = MDLVertexAttributeTextureCoordinate
         
-        let bufAllocator = MTKMeshBufferAllocator(device: device)
-        guard let url = NSBundle.mainBundle().URLForResource(model, withExtension: nil) else { return false }
-        let asset = MDLAsset(URL: url, vertexDescriptor: modelDescriptor, bufferAllocator: bufAllocator)
+        let bufAllocator = MTKMeshBufferAllocator(device: device!)
+        guard let url = Bundle.main.url(forResource: model, withExtension: nil) else { return false }
+        let asset = MDLAsset(url: url, vertexDescriptor: modelDescriptor, bufferAllocator: bufAllocator)
         
         // Create MetalKit meshes.
         let mtkMeshes: NSArray?
         var mdlMeshes: NSArray?
         do {
-            mtkMeshes = try MTKMesh.newMeshesFromAsset(asset, device: device, sourceMeshes: &mdlMeshes)
+            mtkMeshes = try MTKMesh.newMeshes(from: asset, device: device!, sourceMeshes: &mdlMeshes) as NSArray?
         } catch {
             return false
         }
         
         // Create our array of App-Specific mesh wrapper objects.
-        meshes = mtkMeshes?.enumerate().map {
-            Mesh(mtkMesh: $0.1 as! MTKMesh, mdlMesh: mdlMeshes![$0.0] as! MDLMesh, device: device)
+        meshes = mtkMeshes?.enumerated().map {
+            Mesh(mtkMesh: $0.1 as! MTKMesh, mdlMesh: mdlMeshes![$0.0] as! MDLMesh, device: device!)
         }
         
         // Create a uniform buffer that we'll dynamicall update each frame.
-        for var i = 0; i < Render.BufferCount; i++ {
-            frameUniformBuffers += [device.newBufferWithLength(sizeof(VertexUniforms), options: .CPUCacheModeDefaultCache)]
+        for _ in 0..<Render.BufferCount {
+            guard let buf = device?.makeBuffer(length: MemoryLayout<VertexUniforms>.size, options: MTLResourceOptions())else {
+                return false
+            }
+            frameUniformBuffers.append(buf)
         }
         return true
     }
@@ -117,17 +120,17 @@ class MeshRender: RenderProtocol {
     func update() {
         let ren = Render.current
         
-        let p = UnsafeMutablePointer<VertexUniforms>(frameUniformBuffers[ren.activeBufferNumber].contents())
-        var uni = p.memory
+        let p = frameUniformBuffers[ren.activeBufferNumber].contents().assumingMemoryBound(to: VertexUniforms.self)
+        var uni = p.pointee
         let mat = ren.cameraMatrix * modelMatrix
         uni.projectionView = ren.projectionMatrix * mat
         uni.normal = mat.inverse.transpose
-        p.memory = uni
+        p.pointee = uni
     }
-
-    func render(renderEncoder: MTLRenderCommandEncoder) {
+    
+    func render(_ renderEncoder: MTLRenderCommandEncoder) {
         renderEncoder.pushDebugGroup("Render Meshes")
-
+        
         // Set context state.
         renderEncoder.setDepthStencilState(depthState)
         renderEncoder.setRenderPipelineState(pipelineState)
@@ -136,11 +139,11 @@ class MeshRender: RenderProtocol {
         renderEncoder.setVertexBuffer(
             frameUniformBuffers[Render.current.activeBufferNumber],
             offset: 0,
-            atIndex: Mesh.Buffer.FrameUniform.index())
+            at: Mesh.Buffer.frameUniform.index())
         
         // Render each of our meshes.
         meshes.forEach { mesh in mesh.render(renderEncoder) }
-
+        
         renderEncoder.popDebugGroup()
     }
 }

@@ -28,13 +28,13 @@ class ViewController: UIViewController {
 
     // MARK: -
 
-    private func setup_metal() {
+    fileprivate func setup_metal() {
         if let mtkView = Render.current.setupView(self.view as? MTKView) {
             /* MTKViewの初期設定 */
             mtkView.sampleCount = 1
-            mtkView.depthStencilPixelFormat = .Invalid
+            mtkView.depthStencilPixelFormat = .invalid
             
-            mtkView.colorPixelFormat = .BGRA8Unorm
+            mtkView.colorPixelFormat = .bgra8Unorm
             mtkView.clearColor = MTLClearColorMake(0.1, 0.1, 0.1, 1)
             
             // compute shader利用時はfalse
@@ -44,7 +44,7 @@ class ViewController: UIViewController {
         }
     }
     
-    private func load_assets() {
+    fileprivate func load_assets() {
         /* モデルの設定 */
         let obj = MeshRender()
         // シェーダとobjファイルを指定

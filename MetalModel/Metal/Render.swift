@@ -16,13 +16,13 @@ protocol RenderProtocol {
     // 1フレーム毎に呼ばれる（描画前）
     func update()
     // 描画時に呼ばれる
-    func render(renderEncoder: MTLRenderCommandEncoder)
+    func render(_ renderEncoder: MTLRenderCommandEncoder)
 }
 
 // GPGPU用のオブジェクトのプロトコル
 protocol ComputeProtocol {
     // 1フレーム毎に呼ばれる（描画前）
-    func compute(commandBuffer: MTLCommandBuffer)
+    func compute(_ commandBuffer: MTLCommandBuffer)
     // 描画後に呼ばれる
     func postRender()
 }
@@ -39,17 +39,17 @@ class Render: NSObject, MTKViewDelegate {
     
     // Singleton
     static let current = Render()
-    private(set) static var canUse = false
+    fileprivate(set) static var canUse = false
 
     // View
     weak var mtkView: MTKView! = nil
-    private let semaphore = dispatch_semaphore_create(Render.BufferCount)
-    private(set) var activeBufferNumber = 0
+    fileprivate let semaphore = DispatchSemaphore(value: Render.BufferCount)
+    fileprivate(set) var activeBufferNumber = 0
    
     // Renderer
-    private(set) var device: MTLDevice!
-    private(set) var commandQueue: MTLCommandQueue!
-    private(set) var library: MTLLibrary!
+    fileprivate(set) var device: MTLDevice!
+    fileprivate(set) var commandQueue: MTLCommandQueue!
+    fileprivate(set) var library: MTLLibrary!
     
     // Uniforms
     var projectionMatrix = float4x4(matrix_identity_float4x4)
@@ -67,7 +67,7 @@ class Render: NSObject, MTKViewDelegate {
         /* Metalの初期設定 */
         guard let new_dev = MTLCreateSystemDefaultDevice() else { return }
         device = new_dev
-        commandQueue = device.newCommandQueue()
+        commandQueue = device.makeCommandQueue()
         guard let new_lib = device.newDefaultLibrary() else { return }
         library = new_lib
         
@@ -75,7 +75,7 @@ class Render: NSObject, MTKViewDelegate {
     }
     
     // MARK: - public
-    func setupView(view: MTKView?) -> MTKView? {
+    func setupView(_ view: MTKView?) -> MTKView? {
         guard Render.canUse else { return nil }
         guard view != nil else { return nil }
         
@@ -87,22 +87,22 @@ class Render: NSObject, MTKViewDelegate {
     }
     
     // MARK: - MTKViewDelegate
-    func mtkView(view: MTKView, drawableSizeWillChange size: CGSize) {
+    func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
         let aspect = Float(fabs(view.bounds.size.width / view.bounds.height))
         projectionMatrix = Matrix.perspective(
             fovY: DefaultCameraFovY, aspect: aspect, nearZ: DefaultCameraNearZ, farZ: DefaultCameraFarZ)
     }
     
-    func drawInMTKView(view: MTKView) {
+    func draw(in view: MTKView) {
         autoreleasepool {
-            dispatch_semaphore_wait(semaphore, DISPATCH_TIME_FOREVER)
-            let commandBuffer = Render.current.commandQueue.commandBuffer()
+            semaphore.wait(timeout: DispatchTime.distantFuture)
+            let commandBuffer = Render.current.commandQueue.makeCommandBuffer()
             
             compute(commandBuffer)
             update()
 
             guard let renderDescriptor = mtkView.currentRenderPassDescriptor  else { return }
-            let renderEncoder = commandBuffer.renderCommandEncoderWithDescriptor(renderDescriptor)
+            let renderEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: renderDescriptor)
             renderEncoder.setViewport(MTLViewport(
                 originX: 0, originY: 0,
                 width: Double(mtkView.drawableSize.width), height: Double(mtkView.drawableSize.height),
@@ -115,29 +115,29 @@ class Render: NSObject, MTKViewDelegate {
 
             let block_sema = semaphore
             commandBuffer.addCompletedHandler { buffer in
-                dispatch_semaphore_signal(block_sema)
+                block_sema.signal()
             }
 
-            commandBuffer.presentDrawable(mtkView.currentDrawable!)
+            commandBuffer.present(mtkView.currentDrawable!)
             commandBuffer.commit()
             Render.current.activeBufferNumber = (Render.current.activeBufferNumber + 1) % Render.BufferCount
         }
     }
 
     // MARK: - private
-    private func compute(commandBuffer: MTLCommandBuffer) {
+    fileprivate func compute(_ commandBuffer: MTLCommandBuffer) {
         computeTargets.forEach { $0.compute(commandBuffer) }
     }
     
-    private func update() {
+    fileprivate func update() {
         renderTargets.forEach { $0.update() }
     }
     
-    private func render(renderEncoder: MTLRenderCommandEncoder) {
+    fileprivate func render(_ renderEncoder: MTLRenderCommandEncoder) {
         renderTargets.forEach { $0.render(renderEncoder) }
     }
 
-    private func postRender() {
+    fileprivate func postRender() {
         computeTargets.forEach { $0.postRender() }
     }
 }
