@@ -8,19 +8,6 @@
 
 import UIKit
 import MetalKit
-// FIXME: comparison operators with optionals were removed from the Swift Standard Libary.
-// Consider refactoring the code to use the non-optional operators.
-fileprivate func < <T : Comparable>(lhs: T?, rhs: T?) -> Bool {
-    switch (lhs, rhs) {
-    case let (l?, r?):
-        return l < r
-    case (nil, _?):
-        return true
-    default:
-        return false
-    }
-}
-
 
 /* シェーダとやりとりする用 */
 struct VertexUniforms {
@@ -41,7 +28,7 @@ class Mesh {
         case meshVertex = 0
         case frameUniform = 1
         case materialUniform = 2
-        func index() -> Int { return self.rawValue }
+        var index: Int { return self.rawValue }
     }
     
     let mesh: MTKMesh
@@ -49,19 +36,19 @@ class Mesh {
     
     init(mtkMesh: MTKMesh, mdlMesh: MDLMesh, device: MTLDevice) {
         mesh = mtkMesh
-        submeshes = (mdlMesh.submeshes?.enumerated().map {
-            Submesh(mtkSubmesh: mtkMesh.submeshes[$0.0], mdlSubmesh: $0.1 as! MDLSubmesh, device: device)
-            })!
+        
+        submeshes = mdlMesh.submeshes?.enumerated().flatMap {
+            guard let sub = $0.1 as? MDLSubmesh else { return nil }
+            return Submesh(mtkSubmesh: mtkMesh.submeshes[$0.0], mdlSubmesh: sub, device: device)
+            } ?? []
     }
     
-    func render(_ encoder: MTLRenderCommandEncoder) {
-        for buffer in mesh.vertexBuffers.enumerated() {
-            encoder.setVertexBuffer(buffer.1.buffer, offset: buffer.1.offset, at: buffer.0)
+    func render(encoder: MTLRenderCommandEncoder) {
+        mesh.vertexBuffers.enumerated().forEach {
+            encoder.setVertexBuffer($0.1.buffer, offset: $0.1.offset, at: $0.0)
         }
         
-        for sub in submeshes {
-            sub.render(encoder)
-        }
+        submeshes.forEach { $0.render(encoder: encoder) }
     }
 }
 
@@ -74,54 +61,50 @@ class Submesh {
         materialUniforms = device.makeBuffer(length: MemoryLayout<MaterialColor>.size, options: MTLResourceOptions())
         submesh = mtkSubmesh
         
+        guard let material = mdlSubmesh.material  else { return }
         
         var uniforms = materialUniforms.contents().assumingMemoryBound(to: MaterialColor.self).pointee
-        for i in 0..<(mdlSubmesh.material?.count ?? 0) {
-            if let property = mdlSubmesh.material![i] {
-                switch property.name {
-                case "baseColorMap":
-                    if property.type == .string {
-                        let url = URL(fileURLWithPath: property.stringValue!)
-                        let loader = MTKTextureLoader(device: device)
-                        do {
-                            diffuseTexture = try loader.newTexture(withContentsOf: url, options: nil)
-                        } catch {
-                            diffuseTexture = nil
-                        }
-                    }
-                case "specularColor":
-                    switch property.type {
-                    case .float4:
-                        uniforms.specular = property.float4Value
-                    case .float3:
-                        let col = property.float3Value
-                        uniforms.specular = float4([col.x, col.y, col.z, 1])
-                    default: break
-                    }
-                case "emission":
-                    switch property.type {
-                    case .float4:
-                        uniforms.emissive = property.float4Value
-                    case .float3:
-                        let col = property.float3Value
-                        uniforms.emissive = float4([col.x, col.y, col.z, 1])
-                    default: break
-                    }
-                default: break
-                }
+        for i in 0 ..< material.count {
+            guard let property = material[i] else { continue }
+            
+            switch (property.name, property.type) {
+            case ("baseColorMap", .string):
+                guard let path = property.stringValue else { continue }
+                let url = URL(fileURLWithPath: path)
+                let loader = MTKTextureLoader(device: device)
+                diffuseTexture = try? loader.newTexture(withContentsOf: url, options: nil)
+                
+            case ("specularColor", .float4):
+                uniforms.specular = property.float4Value
+            case ("specularColor", .float3):
+                let col = property.float3Value
+                uniforms.specular = float4(col.x, col.y, col.z, 1)
+                
+            case ("emission", .float4):
+                uniforms.emissive = property.float4Value
+            case ("emission", .float3):
+                let col = property.float3Value
+                uniforms.emissive = float4(col.x, col.y, col.z, 1)
+                
+            default: continue
+                
             }
         }
     }
     
-    func render(_ encoder: MTLRenderCommandEncoder) {
+    func render(encoder: MTLRenderCommandEncoder) {
         // Set material values and textures.
         if let tex = diffuseTexture {
             encoder.setFragmentTexture(tex, at: 0)
         }
-        encoder.setFragmentBuffer(materialUniforms, offset: 0, at: Mesh.Buffer.materialUniform.index())
-        encoder.setVertexBuffer(materialUniforms, offset: 0, at: Mesh.Buffer.materialUniform.index())
+        encoder.setFragmentBuffer(materialUniforms, offset: 0, at: Mesh.Buffer.materialUniform.index)
+        encoder.setVertexBuffer(materialUniforms, offset: 0, at: Mesh.Buffer.materialUniform.index)
         
         // Draw the submesh.
-        encoder.drawIndexedPrimitives(type: submesh.primitiveType, indexCount: submesh.indexCount, indexType: submesh.indexType, indexBuffer: submesh.indexBuffer.buffer, indexBufferOffset: submesh.indexBuffer.offset)
+        encoder.drawIndexedPrimitives(type: submesh.primitiveType,
+                                      indexCount: submesh.indexCount,
+                                      indexType: submesh.indexType,
+                                      indexBuffer: submesh.indexBuffer.buffer,
+                                      indexBufferOffset: submesh.indexBuffer.offset)
     }
 }
