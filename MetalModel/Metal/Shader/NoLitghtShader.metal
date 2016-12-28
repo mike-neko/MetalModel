@@ -31,7 +31,7 @@ vertex ShaderInOut noLightVertex(VertexInput in [[stage_in]],
                                  constant VertexUniforms& uniforms [[ buffer(1) ]]) {
     ShaderInOut out;
     out.position = uniforms.projectionView * float4(in.position, 1.0);
-    out.texcoord = in.texcoord;
+    out.texcoord = half2(in.texcoord.x, 1 - in.texcoord.y);
     return out;
 }
 
