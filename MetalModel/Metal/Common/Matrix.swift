@@ -61,4 +61,19 @@ class Matrix {
     static func scale(x: Float, y: Float, z: Float) -> float4x4 {
         return float4x4(diagonal: float4(x, y, z, 1))
     }
+
+    static func lookAt(camera: float3, target: float3, up: float3) -> float4x4 {
+        let F = simd.normalize(target - camera)
+        let S = simd.normalize(simd.cross(F, simd.normalize(up)))
+        let U = simd.normalize(simd.cross(S, F))
+        
+        let result = float4x4([
+            float4(S.x, S.y, S.z, 0),
+            float4(U.x, U.y, U.z, 0),
+            float4(-F.x, -F.y, -F.z, 0),
+            float4(0, 0, 0, 1)])
+        
+        return result * translation(x: -camera.x, y: -camera.y, z: camera.z)
+    }
+
 }

@@ -16,6 +16,9 @@ protocol RenderType {
     // 初期化
     init(render: Render)
     
+    // update前のコールバック
+    var preUpdate: ((Render) -> Void)? { get set }
+
     // 1フレーム毎に呼ばれる（描画前）
     func update()
     // 描画時に呼ばれる
@@ -59,6 +62,10 @@ class Render: NSObject, MTKViewDelegate {
     var viewportNear = 0.0
     var viewportFar = 1.0
     
+    // Time
+    private var lastTime: Date
+    private(set) var deltaTime = TimeInterval(0)
+    
     // Objects
     var computeTargets = [ComputeType]()
     var renderTargets = [RenderType]()
@@ -74,6 +81,8 @@ class Render: NSObject, MTKViewDelegate {
         
         guard let new_lib = device.newDefaultLibrary() else { return nil }
         self.library = new_lib
+        
+        self.lastTime = Date()
         
         super.init()
         
@@ -94,10 +103,14 @@ class Render: NSObject, MTKViewDelegate {
             guard let drawable = view.currentDrawable else { return }
             guard let renderDescriptor = view.currentRenderPassDescriptor  else { return }
             
+            deltaTime = Date().timeIntervalSince(lastTime)
+            lastTime = Date()
+
             let _ = semaphore.wait(timeout: DispatchTime.distantFuture)
             let commandBuffer = commandQueue.makeCommandBuffer()
             
             compute(commandBuffer: commandBuffer)
+            preUpdate()
             update()
             
             let renderEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: renderDescriptor)
@@ -125,6 +138,10 @@ class Render: NSObject, MTKViewDelegate {
     // MARK: - private
     private func compute(commandBuffer: MTLCommandBuffer) {
         computeTargets.forEach { $0.compute(commandBuffer: commandBuffer) }
+    }
+    
+    private func preUpdate() {
+        renderTargets.forEach { $0.preUpdate?(self) }
     }
     
     private func update() {

@@ -29,6 +29,9 @@ class MeshRender: RenderType {
     // Uniforms
     var modelMatrix = float4x4(matrix_identity_float4x4)
     
+    // callback
+    var preUpdate: ((Render) -> Void)? = nil
+    
     required init(render: Render) {
         self.render = render
     }

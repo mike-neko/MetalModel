@@ -55,7 +55,7 @@ class Quaternion {
     }
     
     // オイラー角（degree）をクォータニオンへ変換
-    static func fromEuler(x: Float, y: Float, z: Float) -> float4 {
+    static func fromEuler(x: Float = 0, y: Float = 0, z: Float = 0) -> float4 {
         let pi = Float(M_PI) / 180 / 2
         let pitch = x * pi
         let yaw = y * pi

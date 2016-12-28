@@ -56,13 +56,17 @@ class ViewController: UIViewController {
                         fragmentShaderName: "noLightFragment",
                         model: "Assets/realship/realship.obj")
             else { return false }
+        obj.preUpdate = { render in
+            let q = Quaternion.fromEuler(x: Float(render.deltaTime * 100))
+            obj.modelMatrix = obj.modelMatrix * Quaternion.toMatrix(q)
+        }
         
         // 描画対象として追加
         render.renderTargets.append(obj)
         
         // 位置を調整
-        obj.modelMatrix = Matrix.translation(x: 0, y: 2, z: 2)
-            * Quaternion.toMatrix(Quaternion.fromEuler(x: 270, y: 180, z: 0))
+        obj.modelMatrix = Matrix.translation(x: 0, y: 2.25, z: 2)
+            * Quaternion.toMatrix(Quaternion.fromEuler(x: 0, y: 180, z: 0))
         // カメラ位置を調整
         render.cameraMatrix = Matrix.translation(x: 0, y: -2, z: 6)
         
