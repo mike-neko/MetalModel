@@ -133,22 +133,22 @@ class MeshRender: RenderType {
         p.pointee = uni
     }
     
-    func render(encoder renderEncoder: MTLRenderCommandEncoder) {
-        renderEncoder.pushDebugGroup("Render Meshes")
+    func render(encoder: MTLRenderCommandEncoder) {
+        encoder.pushDebugGroup("Render Meshes")
         
         // Set context state.
-        renderEncoder.setDepthStencilState(depthState)
-        renderEncoder.setRenderPipelineState(pipelineState)
+        encoder.setDepthStencilState(depthState)
+        encoder.setRenderPipelineState(pipelineState)
         
         // Set the our per frame uniforms.
-        renderEncoder.setVertexBuffer(frameUniformBuffers[render.activeBufferNumber],
+        encoder.setVertexBuffer(frameUniformBuffers[render.activeBufferNumber],
                                       offset: 0,
                                       at: Mesh.Buffer.frameUniform.index)
         
         // Render each of our meshes.
-        meshes.forEach { mesh in mesh.render(encoder: renderEncoder) }
+        meshes.forEach { mesh in mesh.render(encoder: encoder) }
         
-        renderEncoder.popDebugGroup()
+        encoder.popDebugGroup()
     }
 }
 
