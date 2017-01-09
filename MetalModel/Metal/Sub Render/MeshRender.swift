@@ -117,7 +117,7 @@ class MeshRender: RenderType {
         }
         
         // Create a uniform buffer that we'll dynamicall update each frame.
-        frameUniformBuffers = [Int](0..<Render.bufferCount).map { _ in
+        frameUniformBuffers = (0..<Render.bufferCount).map { _ in
             device.makeBuffer(length: MemoryLayout<VertexUniforms>.size, options: MTLResourceOptions())
         }
         

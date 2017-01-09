@@ -106,7 +106,7 @@ class Render: NSObject, MTKViewDelegate {
             deltaTime = Date().timeIntervalSince(lastTime)
             lastTime = Date()
 
-            let _ = semaphore.wait(timeout: DispatchTime.distantFuture)
+            semaphore.wait()
             let commandBuffer = commandQueue.makeCommandBuffer()
             
             compute(commandBuffer: commandBuffer)
@@ -124,9 +124,8 @@ class Render: NSObject, MTKViewDelegate {
             
             renderEncoder.endEncoding()
             
-            let block_sema = semaphore
             commandBuffer.addCompletedHandler { _ in
-                block_sema.signal()
+                self.semaphore.signal()
             }
             
             commandBuffer.present(drawable)
