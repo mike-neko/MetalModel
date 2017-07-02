@@ -12,7 +12,7 @@ import simd
 /* クォータニオン周りのユーティリティ */
 class Quaternion {
     // 正規化
-    static func normalize(q: float4) -> float4 {
+    static func normalize(_ q: float4) -> float4 {
         let mag = sqrt(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w)
         if mag > 0 {
             return float4(q.x / mag, q.y / mag, q.z / mag, q.w / mag)
@@ -21,7 +21,7 @@ class Quaternion {
     }
     
     // クォータニオンを行列へ変換
-    static func toMatrix(q: float4) -> float4x4 {
+    static func toMatrix(_ q: float4) -> float4x4 {
         let nor = q.x * q.x + q.y * q.y + q.z * q.z + q.w + q.w
         let s = (nor > 0) ? 2 / nor : 0
         
@@ -55,7 +55,7 @@ class Quaternion {
     }
     
     // オイラー角（degree）をクォータニオンへ変換
-    static func fromEuler(x x: Float, y: Float, z: Float) -> float4 {
+    static func fromEuler(x: Float = 0, y: Float = 0, z: Float = 0) -> float4 {
         let pi = Float(M_PI) / 180 / 2
         let pitch = x * pi
         let yaw = y * pi

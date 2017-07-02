@@ -12,15 +12,21 @@ import MetalKit
 // MARK: - Protocol
 
 // 描画用のオブジェクトのプロトコル
-protocol RenderProtocol {
+protocol RenderType {
+    // 初期化
+    init(render: Render)
+    
+    // update前のコールバック
+    var preUpdate: ((Render) -> Void)? { get set }
+
     // 1フレーム毎に呼ばれる（描画前）
     func update()
     // 描画時に呼ばれる
-    func render(renderEncoder: MTLRenderCommandEncoder)
+    func render(encoder: MTLRenderCommandEncoder)
 }
 
 // GPGPU用のオブジェクトのプロトコル
-protocol ComputeProtocol {
+protocol ComputeType {
     // 1フレーム毎に呼ばれる（描画前）
     func compute(commandBuffer: MTLCommandBuffer)
     // 描画後に呼ばれる
@@ -31,25 +37,24 @@ protocol ComputeProtocol {
 // MARK: -
 class Render: NSObject, MTKViewDelegate {
     // バッファの数
-    static let BufferCount = 3
+    static var bufferCount = 3
     // デフォルトのカメラ
-    let DefaultCameraFovY: Float = 75.0
-    let DefaultCameraNearZ: Float = 0.1
-    let DefaultCameraFarZ: Float = 100
+    struct DefaultCamera {
+        static var fovY = Float(75.0)
+        static var nearZ = Float(0.1)
+        static var farZ = Float(100)
+    }
     
-    // Singleton
-    static let current = Render()
-    private(set) static var canUse = false
-
     // View
-    weak var mtkView: MTKView! = nil
-    private let semaphore = dispatch_semaphore_create(Render.BufferCount)
+    private(set) weak var view: MTKView!
+    
+    private let semaphore: DispatchSemaphore
     private(set) var activeBufferNumber = 0
-   
+    
     // Renderer
-    private(set) var device: MTLDevice!
-    private(set) var commandQueue: MTLCommandQueue!
-    private(set) var library: MTLLibrary!
+    private(set) var device: MTLDevice
+    private(set) var commandQueue: MTLCommandQueue
+    private(set) var library: MTLLibrary
     
     // Uniforms
     var projectionMatrix = float4x4(matrix_identity_float4x4)
@@ -57,86 +62,95 @@ class Render: NSObject, MTKViewDelegate {
     var viewportNear = 0.0
     var viewportFar = 1.0
     
+    // Time
+    private var lastTime: Date
+    private(set) var deltaTime = TimeInterval(0)
+    
     // Objects
-    var computeTargets = [ComputeProtocol]()
-    var renderTargets = [RenderProtocol]()
+    var computeTargets = [ComputeType]()
+    var renderTargets = [RenderType]()
     
-    override init() {
-        Render.canUse = false
-
+    init?(view: MTKView) {
         /* Metalの初期設定 */
-        guard let new_dev = MTLCreateSystemDefaultDevice() else { return }
-        device = new_dev
-        commandQueue = device.newCommandQueue()
-        guard let new_lib = device.newDefaultLibrary() else { return }
-        library = new_lib
+        self.view = view
+        self.semaphore = DispatchSemaphore(value: Render.bufferCount)
         
-        Render.canUse = true
-    }
-    
-    // MARK: - public
-    func setupView(view: MTKView?) -> MTKView? {
-        guard Render.canUse else { return nil }
-        guard view != nil else { return nil }
+        guard let device = MTLCreateSystemDefaultDevice() else { return nil }
+        self.device = device
+        self.commandQueue = device.makeCommandQueue()
         
-        mtkView = view!
-        mtkView.delegate = self
-        mtkView.device = device
+        guard let new_lib = device.newDefaultLibrary() else { return nil }
+        self.library = new_lib
         
-        return view
+        self.lastTime = Date()
+        
+        super.init()
+        
+        self.view.device = device
+        self.view.delegate = self
     }
     
     // MARK: - MTKViewDelegate
-    func mtkView(view: MTKView, drawableSizeWillChange size: CGSize) {
-        let aspect = Float(fabs(view.bounds.size.width / view.bounds.height))
-        projectionMatrix = Matrix.perspective(
-            fovY: DefaultCameraFovY, aspect: aspect, nearZ: DefaultCameraNearZ, farZ: DefaultCameraFarZ)
+    func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
+        projectionMatrix = Matrix.perspective(fovY: DefaultCamera.fovY,
+                                              aspect: Float(fabs(view.bounds.size.width / view.bounds.height)),
+                                              nearZ: DefaultCamera.nearZ,
+                                              farZ: DefaultCamera.farZ)
     }
     
-    func drawInMTKView(view: MTKView) {
+    func draw(in view: MTKView) {
         autoreleasepool {
-            dispatch_semaphore_wait(semaphore, DISPATCH_TIME_FOREVER)
-            let commandBuffer = Render.current.commandQueue.commandBuffer()
+            guard let drawable = view.currentDrawable else { return }
+            guard let renderDescriptor = view.currentRenderPassDescriptor  else { return }
             
-            compute(commandBuffer)
-            update()
+            deltaTime = Date().timeIntervalSince(lastTime)
+            lastTime = Date()
 
-            guard let renderDescriptor = mtkView.currentRenderPassDescriptor  else { return }
-            let renderEncoder = commandBuffer.renderCommandEncoderWithDescriptor(renderDescriptor)
+            semaphore.wait()
+            let commandBuffer = commandQueue.makeCommandBuffer()
+            
+            compute(commandBuffer: commandBuffer)
+            preUpdate()
+            update()
+            
+            let renderEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: renderDescriptor)
             renderEncoder.setViewport(MTLViewport(
                 originX: 0, originY: 0,
-                width: Double(mtkView.drawableSize.width), height: Double(mtkView.drawableSize.height),
+                width: Double(view.drawableSize.width), height: Double(view.drawableSize.height),
                 znear: viewportNear, zfar: viewportFar))
             
-            render(renderEncoder)
+            render(encoder: renderEncoder)
             postRender()
             
             renderEncoder.endEncoding()
-
-            let block_sema = semaphore
-            commandBuffer.addCompletedHandler { buffer in
-                dispatch_semaphore_signal(block_sema)
+            
+            commandBuffer.addCompletedHandler { _ in
+                self.semaphore.signal()
             }
-
-            commandBuffer.presentDrawable(mtkView.currentDrawable!)
+            
+            commandBuffer.present(drawable)
             commandBuffer.commit()
-            Render.current.activeBufferNumber = (Render.current.activeBufferNumber + 1) % Render.BufferCount
+            activeBufferNumber = (activeBufferNumber + 1) % Render.bufferCount
         }
     }
-
+    
     // MARK: - private
     private func compute(commandBuffer: MTLCommandBuffer) {
-        computeTargets.forEach { $0.compute(commandBuffer) }
+        computeTargets.forEach { $0.compute(commandBuffer: commandBuffer) }
+    }
+    
+    private func preUpdate() {
+        renderTargets.forEach { $0.preUpdate?(self) }
     }
     
     private func update() {
         renderTargets.forEach { $0.update() }
     }
     
-    private func render(renderEncoder: MTLRenderCommandEncoder) {
-        renderTargets.forEach { $0.render(renderEncoder) }
+    private func render(encoder: MTLRenderCommandEncoder) {
+        renderTargets.forEach { $0.render(encoder: encoder) }
     }
-
+    
     private func postRender() {
         computeTargets.forEach { $0.postRender() }
     }
